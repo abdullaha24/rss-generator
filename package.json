@@ -1,0 +1,25 @@
+{
+  "name": "eeas-rss-generator",
+  "version": "1.0.0",
+  "description": "Standalone RSS generator for EEAS press material",
+  "main": "standalone-eeas-rss.js",
+  "scripts": {
+    "start": "node standalone-eeas-rss.js",
+    "dev": "node standalone-eeas-rss.js"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "keywords": [
+    "rss",
+    "eeas",
+    "europa",
+    "news",
+    "generator"
+  ],
+  "author": "RSS Generator",
+  "license": "MIT"
+}
