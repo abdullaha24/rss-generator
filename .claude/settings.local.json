@@ -15,7 +15,8 @@
       "Bash(npm run build:*)",
       "Bash(docker build:*)",
       "Bash(npm start)",
-      "WebFetch(domain:localhost)"
+      "WebFetch(domain:localhost)",
+      "WebFetch(domain:curia.europa.eu)"
     ],
     "deny": []
   }
