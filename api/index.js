@@ -26,6 +26,11 @@ function cleanHtmlContent(html) {
         .substring(0, 200); // Limit to 200 chars for clean RSS
 }
 
+// Simple delay function for JS content loading
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 // Professional HTTP client with proper headers
 async function fetchWebContent(targetUrl) {
     return new Promise((resolve, reject) => {
@@ -388,6 +393,10 @@ async function generateECARSS(reqUrl) {
         
         // Fetch the live ECA news page
         const html = await fetchWebContent('https://www.eca.europa.eu/en/all-news');
+        
+        // Add 5-second delay to allow JavaScript content to load
+        console.log('⏳ Waiting 5 seconds for JavaScript content to load...');
+        await delay(5000);
         
         // Parse all the news cards from page 1 (up to 12 items)
         const items = parseECAContent(html);

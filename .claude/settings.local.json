@@ -17,7 +17,9 @@
       "Bash(npm start)",
       "WebFetch(domain:localhost)",
       "WebFetch(domain:curia.europa.eu)",
-      "WebFetch(domain:b4743b544f2f.ngrok-free.app)"
+      "WebFetch(domain:b4743b544f2f.ngrok-free.app)",
+      "WebFetch(domain:rss-generator-m0q7aljzo-abdullah-asifs-projects-a9aef6b5.vercel.app)",
+      "WebFetch(domain:rss-generator-liard.vercel.app)"
     ],
     "deny": []
   }
