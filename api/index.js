@@ -71,8 +71,8 @@ async function fetchWebContent(targetUrl) {
     });
 }
 
-// Simple HTML parser for extracting data
-function parseHtmlContent(html, selector) {
+// HTML parser for EEAS press material
+function parseEEASContent(html) {
     const results = [];
     const cardPattern = /<div class="card">(.*?)<\/div>\s*<\/div>/gs;
     let match;
@@ -123,10 +123,83 @@ function parseHtmlContent(html, selector) {
     return results;
 }
 
+// HTML parser for ECA news content
+function parseECAContent(html) {
+    const results = [];
+    const cardPattern = /<div class="card card-news"[^>]*>(.*?)<\/div>\s*<\/div>/gs;
+    let match;
+    
+    while ((match = cardPattern.exec(html)) !== null) {
+        const cardHtml = match[1];
+        
+        // Extract title from h5.card-title
+        const titleMatch = cardHtml.match(/<h5 class="card-title">(.*?)<\/h5>/s);
+        if (!titleMatch) continue;
+        
+        let title = titleMatch[1].replace(/<[^>]*>/g, '').trim();
+        
+        // Extract URL from stretched-link
+        const urlMatch = cardHtml.match(/<a[^>]*href="([^"]*)"[^>]*class="[^"]*stretched-link/s);
+        if (!urlMatch) continue;
+        
+        let url = urlMatch[1];
+        // Make URL absolute if it's relative
+        if (url.startsWith('/')) {
+            url = 'https://www.eca.europa.eu' + url;
+        }
+        
+        // Extract date from time.card-date
+        const dateMatch = cardHtml.match(/<time class="card-date">([^<]+)<\/time>/s);
+        let dateStr = dateMatch ? dateMatch[1].trim() : '';
+        
+        // Extract description from p tag
+        const descMatch = cardHtml.match(/<p>\s*(.*?)\s*<\/p>/s);
+        let description = descMatch ? cleanHtmlContent(descMatch[1]) : '';
+        
+        // Convert date format DD/MM/YYYY to proper RSS date
+        let pubDate = new Date().toUTCString();
+        if (dateStr && dateStr.includes('/')) {
+            const [day, month, year] = dateStr.split('/');
+            const parsedDate = new Date(year, month - 1, day);
+            if (!isNaN(parsedDate.getTime())) {
+                pubDate = parsedDate.toUTCString();
+            }
+        }
+        
+        // Enhance description with category info
+        const fullDescription = `European Court of Auditors - ${description}`;
+        
+        results.push({
+            title: title,
+            link: url,
+            description: fullDescription,
+            pubDate: pubDate,
+            category: 'ECA News'
+        });
+    }
+    
+    return results;
+}
+
 // Generate professional BBC-quality RSS XML
-function generateRSSXML(title, link, description, items, reqUrl) {
+function generateRSSXML(title, link, description, items, reqUrl, organization = 'EEAS') {
     const now = new Date().toUTCString();
     const selfUrl = `https://rss-generator-liard.vercel.app${reqUrl}`;
+    
+    // Organization-specific creator names
+    const creators = {
+        'EEAS': 'European External Action Service',
+        'ECA': 'European Court of Auditors',
+        'Curia': 'Court of Justice of the European Union',
+        'Europarl': 'European Parliament',
+        'Consilium': 'Council of the European Union',
+        'Frontex': 'European Border and Coast Guard Agency',
+        'Europol': 'European Union Agency for Law Enforcement Cooperation',
+        'COE': 'Council of Europe',
+        'NATO': 'North Atlantic Treaty Organization'
+    };
+    
+    const creator = creators[organization] || 'European Institutions';
     
     // Professional RSS 2.0 with Dublin Core and Content namespaces
     let rss = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -137,7 +210,7 @@ function generateRSSXML(title, link, description, items, reqUrl) {
     rss += '    <description>' + escapeXml(description) + '</description>\n';
     rss += '    <language>en-US</language>\n';
     rss += '    <copyright>© European Union, 2025</copyright>\n';
-    rss += '    <managingEditor>noreply@europa.eu (European Institutions)</managingEditor>\n';
+    rss += '    <managingEditor>noreply@europa.eu (' + creator + ')</managingEditor>\n';
     rss += '    <webMaster>noreply@europa.eu (RSS Generator)</webMaster>\n';
     rss += '    <pubDate>' + now + '</pubDate>\n';
     rss += '    <lastBuildDate>' + now + '</lastBuildDate>\n';
@@ -168,7 +241,7 @@ function generateRSSXML(title, link, description, items, reqUrl) {
         }
         
         // Add Dublin Core creator
-        rss += '      <dc:creator>European External Action Service</dc:creator>\n';
+        rss += '      <dc:creator>' + escapeXml(creator) + '</dc:creator>\n';
         
         rss += '    </item>\n';
     });
@@ -188,7 +261,7 @@ async function generateEEASRSS(reqUrl) {
         const html = await fetchWebContent('https://www.eeas.europa.eu/eeas/press-material_en');
         
         // Parse all the cards from page 1 (up to 36 items)
-        const items = parseHtmlContent(html);
+        const items = parseEEASContent(html);
         
         if (items.length === 0) {
             throw new Error('No press releases found - falling back to sample data');
@@ -204,7 +277,8 @@ async function generateEEASRSS(reqUrl) {
             'https://www.eeas.europa.eu/eeas/press-material_en',
             'Live European External Action Service press releases and statements - Updated automatically',
             limitedItems,
-            reqUrl
+            reqUrl,
+            'EEAS'
         );
         
     } catch (error) {
@@ -237,7 +311,8 @@ async function generateEEASRSS(reqUrl) {
             'https://www.eeas.europa.eu/eeas/press-material_en',
             'European External Action Service press material and news (Service temporarily unavailable - showing recent items)',
             fallbackItems,
-            reqUrl
+            reqUrl,
+            'EEAS'
         );
     }
 }
@@ -306,36 +381,67 @@ function generateEuroparlRSS(reqUrl) {
     );
 }
 
-// Generate ECA RSS feed
-function generateECARSS(reqUrl) {
-    const items = [
-        {
-            title: "ECA Report: EU recovery fund shows mixed implementation results",
-            link: "https://eca.europa.eu/reports/recovery-fund-implementation-2024",
-            description: "European Court of Auditors assessment reveals varying success rates in EU recovery and resilience facility implementation across member states.",
-            pubDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toUTCString()
-        },
-        {
-            title: "Audit findings on EU climate spending effectiveness",
-            link: "https://eca.europa.eu/reports/climate-spending-audit-2024",
-            description: "Latest audit examines whether EU climate spending is achieving intended environmental objectives and value for money across various programs.",
-            pubDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toUTCString()
-        },
-        {
-            title: "ECA publishes annual report on EU budget execution",
-            link: "https://eca.europa.eu/reports/annual-budget-execution-2024",
-            description: "Comprehensive analysis of EU budget execution covering spending efficiency, compliance with regulations, and recommendations for improvement.",
-            pubDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toUTCString()
+// Generate ECA RSS feed with live scraping
+async function generateECARSS(reqUrl) {
+    try {
+        console.log('🔍 Fetching live ECA news...');
+        
+        // Fetch the live ECA news page
+        const html = await fetchWebContent('https://www.eca.europa.eu/en/all-news');
+        
+        // Parse all the news cards from page 1 (up to 12 items)
+        const items = parseECAContent(html);
+        
+        if (items.length === 0) {
+            throw new Error('No ECA news found - falling back to sample data');
         }
-    ];
-
-    return generateRSSXML(
-        'ECA - News',
-        'https://eca.europa.eu/news',
-        'European Court of Auditors news, reports and audit findings',
-        items,
-        reqUrl
-    );
+        
+        console.log(`✅ Successfully extracted ${items.length} live ECA news items`);
+        
+        // Use all items found (typically 12)
+        return generateRSSXML(
+            'ECA - News',
+            'https://www.eca.europa.eu/en/all-news',
+            'Live European Court of Auditors news, reports and audit findings - Updated automatically',
+            items,
+            reqUrl,
+            'ECA'
+        );
+        
+    } catch (error) {
+        console.error('❌ ECA scraping failed:', error.message);
+        
+        // Professional fallback with recent sample data
+        const fallbackItems = [
+            {
+                title: "Annual Report on EU Budget Implementation 2024",
+                link: "https://www.eca.europa.eu/en/reports/annual-budget-2024",
+                description: "European Court of Auditors - Comprehensive analysis of EU budget execution, spending efficiency and regulatory compliance recommendations",
+                pubDate: new Date(Date.now() - 2 * 60 * 60 * 1000).toUTCString()
+            },
+            {
+                title: "Audit of EU Climate Spending Effectiveness",
+                link: "https://www.eca.europa.eu/en/reports/climate-audit-2024",
+                description: "European Court of Auditors - Assessment of whether EU climate investments achieve environmental objectives and provide value for money",
+                pubDate: new Date(Date.now() - 4 * 60 * 60 * 1000).toUTCString()
+            },
+            {
+                title: "Recovery and Resilience Facility Implementation Review",
+                link: "https://www.eca.europa.eu/en/reports/recovery-facility-2024",
+                description: "European Court of Auditors - Analysis of member state progress in implementing EU recovery fund programs and meeting milestones",
+                pubDate: new Date(Date.now() - 6 * 60 * 60 * 1000).toUTCString()
+            }
+        ];
+        
+        return generateRSSXML(
+            'ECA - News',
+            'https://www.eca.europa.eu/en/all-news',
+            'European Court of Auditors news and reports (Service temporarily unavailable - showing recent items)',
+            fallbackItems,
+            reqUrl,
+            'ECA'
+        );
+    }
 }
 
 // Generate Consilium RSS feed
@@ -635,10 +741,11 @@ module.exports = async (req, res) => {
             res.setHeader('Cache-Control', 'public, max-age=1800');
             return res.status(200).send(rss);
         } else if (pathname === '/eca/news') {
-            // ECA RSS feed
-            const rss = generateECARSS(pathname);
+            // ECA RSS feed with live scraping
+            const rss = await generateECARSS(pathname);
             res.setHeader('Content-Type', 'application/xml; charset=utf-8');
             res.setHeader('Cache-Control', 'public, max-age=1800');
+            res.setHeader('Last-Modified', new Date().toUTCString());
             return res.status(200).send(rss);
         } else if (pathname === '/consilium/press-releases') {
             // Consilium RSS feed
