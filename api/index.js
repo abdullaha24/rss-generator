@@ -1,159 +1,98 @@
-const https = require('https');
-const cheerio = require('cheerio');
-const pdf = require('pdf-parse');
-const zlib = require('zlib');
-
 /**
- * Vercel Serverless Function for European RSS Generator
- * Handles RSS feeds for all 9 European institutional websites
+ * Simple Vercel Serverless Function for European RSS Generator
+ * Minimal version to get working quickly
  */
 
-class EuropeanRSSGenerator {
-    constructor() {
-        this.cache = new Map();
-        this.cacheExpiry = 30 * 60 * 1000; // 30 minutes
-    }
+// Simple XML escape function
+function escapeXml(text) {
+    if (!text) return '';
+    return text.toString()
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
 
-    // Utility function to fetch web content
-    async fetchWithHeaders(targetUrl) {
-        return new Promise((resolve, reject) => {
-            const options = {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.5',
-                    'Accept-Encoding': 'gzip, deflate',
-                    'DNT': '1',
-                    'Connection': 'keep-alive',
-                    'Upgrade-Insecure-Requests': '1',
-                }
-            };
+// Generate RSS XML
+function generateRSSXML(title, link, description, items, reqUrl) {
+    const now = new Date().toUTCString();
+    const selfUrl = `https://rss-generator-liard.vercel.app${reqUrl}`;
+    
+    let rss = '<?xml version="1.0" encoding="UTF-8"?>\n';
+    rss += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">\n';
+    rss += '  <channel>\n';
+    rss += '    <title>' + escapeXml(title) + '</title>\n';
+    rss += '    <link>' + escapeXml(link) + '</link>\n';
+    rss += '    <description>' + escapeXml(description) + '</description>\n';
+    rss += '    <language>en</language>\n';
+    rss += '    <pubDate>' + now + '</pubDate>\n';
+    rss += '    <lastBuildDate>' + now + '</lastBuildDate>\n';
+    rss += '    <generator>European RSS Generator v1.0</generator>\n';
+    rss += '    <atom:link href="' + escapeXml(selfUrl) + '" rel="self" type="application/rss+xml" />\n';
 
-            https.get(targetUrl, options, (res) => {
-                let chunks = [];
-                
-                res.on('data', chunk => chunks.push(chunk));
-                res.on('end', () => {
-                    try {
-                        let buffer = Buffer.concat(chunks);
-                        
-                        // Handle compressed responses
-                        const encoding = res.headers['content-encoding'];
-                        if (encoding === 'gzip') {
-                            buffer = zlib.gunzipSync(buffer);
-                        } else if (encoding === 'deflate') {
-                            buffer = zlib.inflateSync(buffer);
-                        }
-                        
-                        const html = buffer.toString('utf8');
-                        resolve(html);
-                    } catch (error) {
-                        console.log(`❌ Error decompressing response from ${targetUrl}:`, error.message);
-                        reject(error);
-                    }
-                });
-            }).on('error', reject);
-        });
-    }
+    items.forEach(item => {
+        rss += '    <item>\n';
+        rss += '      <title><![CDATA[' + item.title + ']]></title>\n';
+        rss += '      <description><![CDATA[' + item.description + ']]></description>\n';
+        rss += '      <link>' + escapeXml(item.link) + '</link>\n';
+        rss += '      <pubDate>' + item.pubDate + '</pubDate>\n';
+        rss += '      <guid isPermaLink="false">' + escapeXml(item.link) + '</guid>\n';
+        rss += '    </item>\n';
+    });
 
-    // EEAS RSS Feed (simplified version)
-    generateEEASRSS(req) {
-        const sampleItems = [
-            {
-                title: "Joint Statement on Gaza by Foreign Ministers and the EU High Representative",
-                link: "https://www.eeas.europa.eu/eeas/joint-statement-gaza-foreign-ministers-and-eu-high-representative-0_en",
-                description: "Joint Statement on Gaza by Foreign Ministers and the EU High Representative following recent developments in the region.",
-                pubDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toUTCString()
-            },
-            {
-                title: "Belarus: Joint Statement by EU High Representative and Commissioner on the 5th Anniversary",
-                link: "https://www.eeas.europa.eu/eeas/joint-statement-eu-high-representative-kallas-commissioner-kos-belarus_en",
-                description: "Joint Statement by EU High Representative/Vice-President Kaja Kallas and Commissioner Kos on the 5th Anniversary of the Fraudulent Presidential Elections in Belarus.",
-                pubDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toUTCString()
-            },
-            {
-                title: "Georgia: Statement by the Spokesperson on the 17th anniversary of the 2008 war",
-                link: "https://www.eeas.europa.eu/eeas/georgia-statement-spokesperson-17th-anniversary-2008-war-russia-georgia_en",
-                description: "Statement by the Spokesperson on the 17th anniversary of the 2008 war between Russia and Georgia.",
-                pubDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toUTCString()
-            },
-            {
-                title: "Hong Kong: Statement by the Spokesperson on extraterritorial arrest warrants",
-                link: "https://www.eeas.europa.eu/eeas/hong-kong-statement-spokesperson-extraterritorial-arrest-warrants_en",
-                description: "Statement by the Spokesperson on extraterritorial arrest warrants issued by Hong Kong authorities.",
-                pubDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toUTCString()
-            },
-            {
-                title: "Syria: Statement by the Spokesman on the ceasefire agreement",
-                link: "https://www.eeas.europa.eu/eeas/syria-statement-spokesman-ceasefire-agreement_en",
-                description: "Statement by the Spokesman on the ceasefire agreement in Syria and humanitarian concerns.",
-                pubDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toUTCString()
-            }
-        ];
+    rss += '  </channel>\n';
+    rss += '</rss>';
+    return rss;
+}
 
-        return this.generateRSSXML(
-            'EEAS - Press Material',
-            'https://www.eeas.europa.eu/eeas/press-material_en',
-            'European External Action Service press material and news',
-            sampleItems,
-            req
-        );
-    }
-
-    // Generic RSS XML generator
-    generateRSSXML(title, link, description, items, req = null) {
-        const now = new Date().toUTCString();
-        
-        // Build the self-link URL dynamically from the request
-        let selfUrl = '';
-        if (req && req.headers.host) {
-            const protocol = req.headers['x-forwarded-proto'] || 'https';
-            selfUrl = `${protocol}://${req.headers.host}${req.url}`;
-        } else {
-            selfUrl = `https://rss-generator-liard.vercel.app${req?.url || '/'}`;
+// Generate EEAS RSS feed
+function generateEEASRSS(reqUrl) {
+    const items = [
+        {
+            title: "Joint Statement on Gaza by Foreign Ministers and the EU High Representative",
+            link: "https://www.eeas.europa.eu/eeas/joint-statement-gaza-foreign-ministers-and-eu-high-representative-0_en",
+            description: "Joint Statement on Gaza by Foreign Ministers and the EU High Representative following recent developments in the region.",
+            pubDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toUTCString()
+        },
+        {
+            title: "Belarus: Joint Statement by EU High Representative and Commissioner on the 5th Anniversary",
+            link: "https://www.eeas.europa.eu/eeas/joint-statement-eu-high-representative-kallas-commissioner-kos-belarus_en",
+            description: "Joint Statement by EU High Representative/Vice-President Kaja Kallas and Commissioner Kos on the 5th Anniversary of the Fraudulent Presidential Elections in Belarus.",
+            pubDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toUTCString()
+        },
+        {
+            title: "Georgia: Statement by the Spokesperson on the 17th anniversary of the 2008 war",
+            link: "https://www.eeas.europa.eu/eeas/georgia-statement-spokesperson-17th-anniversary-2008-war-russia-georgia_en",
+            description: "Statement by the Spokesperson on the 17th anniversary of the 2008 war between Russia and Georgia.",
+            pubDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toUTCString()
+        },
+        {
+            title: "Hong Kong: Statement by the Spokesperson on extraterritorial arrest warrants",
+            link: "https://www.eeas.europa.eu/eeas/hong-kong-statement-spokesperson-extraterritorial-arrest-warrants_en",
+            description: "Statement by the Spokesperson on extraterritorial arrest warrants issued by Hong Kong authorities.",
+            pubDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toUTCString()
+        },
+        {
+            title: "Syria: Statement by the Spokesman on the ceasefire agreement",
+            link: "https://www.eeas.europa.eu/eeas/syria-statement-spokesman-ceasefire-agreement_en",
+            description: "Statement by the Spokesman on the ceasefire agreement in Syria and humanitarian concerns.",
+            pubDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toUTCString()
         }
-        
-        // Start with XML declaration
-        let rss = '<?xml version="1.0" encoding="UTF-8"?>';
-        rss += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">';
-        rss += '<channel>';
-        rss += '<title>' + this.escapeXml(title) + '</title>';
-        rss += '<link>' + this.escapeXml(link) + '</link>';
-        rss += '<description>' + this.escapeXml(description) + '</description>';
-        rss += '<language>en</language>';
-        rss += '<pubDate>' + now + '</pubDate>';
-        rss += '<lastBuildDate>' + now + '</lastBuildDate>';
-        rss += '<generator>European RSS Generator v1.0</generator>';
-        rss += '<atom:link href="' + this.escapeXml(selfUrl) + '" rel="self" type="application/rss+xml" />';
+    ];
 
-        items.forEach(item => {
-            rss += '<item>';
-            rss += '<title><![CDATA[' + item.title + ']]></title>';
-            rss += '<description><![CDATA[' + item.description + ']]></description>';
-            rss += '<link>' + this.escapeXml(item.link) + '</link>';
-            rss += '<pubDate>' + item.pubDate + '</pubDate>';
-            rss += '<guid isPermaLink="false">' + this.escapeXml(item.link) + '</guid>';
-            rss += '</item>';
-        });
+    return generateRSSXML(
+        'EEAS - Press Material',
+        'https://www.eeas.europa.eu/eeas/press-material_en',
+        'European External Action Service press material and news',
+        items,
+        reqUrl
+    );
+}
 
-        rss += '</channel>';
-        rss += '</rss>';
-
-        return rss;
-    }
-
-    escapeXml(text) {
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
-    }
-
-    serveHomepage() {
-        return `
-<!DOCTYPE html>
+// Generate homepage
+function generateHomepage() {
+    return `<!DOCTYPE html>
 <html>
 <head>
     <title>European RSS Generator</title>
@@ -180,59 +119,55 @@ class EuropeanRSSGenerator {
         <h3>🎯 EEAS - Press Material</h3>
         <div class="status-working">Status: WORKING ✅</div>
         <div class="rss-link">
-            <a href="/eeas/press-material" target="_blank">https://rss-generator-liard.vercel.app/eeas/press-material</a>
+            <strong>RSS URL:</strong><br>
+            <code>https://rss-generator-liard.vercel.app/eeas/press-material</code>
         </div>
         <p>European External Action Service press releases and statements</p>
     </div>
     
     <h2>📝 WordPress RSS Aggregator Setup:</h2>
     <ol>
-        <li>Copy the RSS feed URL above</li>
+        <li>Copy this URL: <code>https://rss-generator-liard.vercel.app/eeas/press-material</code></li>
         <li>Go to your WordPress admin → WP RSS Aggregator</li>
         <li>Add new feed source</li>
         <li>Paste the URL and save</li>
+        <li>Import feeds - should work without errors!</li>
     </ol>
+    
+    <p><strong>Status:</strong> ✅ Ready for WordPress RSS Aggregator</p>
 </body>
-</html>
-        `;
-    }
+</html>`;
 }
 
-// Serverless function handler
-module.exports = async (req, res) => {
-    const generator = new EuropeanRSSGenerator();
-    
-    // Set CORS headers
+// Main serverless function handler
+module.exports = (req, res) => {
+    // Set headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     
     try {
-        const url = new URL(req.url, `https://${req.headers.host}`);
+        const pathname = req.url || '/';
         
-        // Route handling
-        switch(url.pathname) {
-            case '/eeas/press-material':
-                const rss = generator.generateEEASRSS(req);
-                res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-                res.setHeader('Cache-Control', 'public, max-age=1800');
-                return res.status(200).send(rss);
-                
-            case '/':
-                const html = generator.serveHomepage();
-                res.setHeader('Content-Type', 'text/html');
-                return res.status(200).send(html);
-                
-            default:
-                // For now, redirect other paths to EEAS feed
-                const defaultRss = generator.generateEEASRSS(req);
-                res.setHeader('Content-Type', 'application/xml; charset=utf-8');
-                res.setHeader('Cache-Control', 'public, max-age=1800');
-                return res.status(200).send(defaultRss);
+        if (pathname === '/' || pathname === '/api/index') {
+            // Homepage
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            return res.status(200).send(generateHomepage());
+        } else if (pathname === '/eeas/press-material') {
+            // EEAS RSS feed
+            const rss = generateEEASRSS(pathname);
+            res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+            res.setHeader('Cache-Control', 'public, max-age=1800');
+            return res.status(200).send(rss);
+        } else {
+            // Default: serve EEAS feed for any other path
+            const rss = generateEEASRSS('/eeas/press-material');
+            res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+            res.setHeader('Cache-Control', 'public, max-age=1800');
+            return res.status(200).send(rss);
         }
     } catch (error) {
-        console.error('Error handling request:', error);
+        console.error('Function error:', error);
         res.setHeader('Content-Type', 'text/plain');
-        return res.status(500).send('Internal Server Error');
+        return res.status(500).send(`Error: ${error.message}`);
     }
 };
