@@ -1,51 +1,44 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "combined-european-rss.js",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/eeas/press-material",
-      "dest": "/combined-european-rss.js"
+  "rewrites": [
+    { 
+      "source": "/eeas/press-material", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/curia/press-releases",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/curia/press-releases", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/europarl/news",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/europarl/news", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/eca/news",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/eca/news", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/consilium/press-releases",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/consilium/press-releases", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/frontex/news",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/frontex/news", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/europol/news",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/europol/news", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/coe/newsroom",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/coe/newsroom", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/nato/news",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/nato/news", 
+      "destination": "/api/index" 
     },
-    {
-      "src": "/",
-      "dest": "/combined-european-rss.js"
+    { 
+      "source": "/", 
+      "destination": "/api/index" 
     }
   ]
 }
