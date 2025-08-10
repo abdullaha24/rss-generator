@@ -47,10 +47,5 @@
       "src": "/",
       "dest": "/combined-european-rss.js"
     }
-  ],
-  "functions": {
-    "combined-european-rss.js": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
