@@ -2,10 +2,10 @@
   "name": "eeas-rss-generator",
   "version": "1.0.0",
   "description": "Standalone RSS generator for EEAS press material",
-  "main": "standalone-eeas-rss.js",
+  "main": "combined-european-rss.js",
   "scripts": {
-    "start": "node standalone-eeas-rss.js",
-    "dev": "node standalone-eeas-rss.js"
+    "start": "node combined-european-rss.js",
+    "dev": "node combined-european-rss.js"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",

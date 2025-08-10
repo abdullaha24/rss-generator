@@ -16,7 +16,8 @@
       "Bash(docker build:*)",
       "Bash(npm start)",
       "WebFetch(domain:localhost)",
-      "WebFetch(domain:curia.europa.eu)"
+      "WebFetch(domain:curia.europa.eu)",
+      "WebFetch(domain:b4743b544f2f.ngrok-free.app)"
     ],
     "deny": []
   }

@@ -4,6 +4,7 @@ const http = require('http');
 const https = require('https');
 const cheerio = require('cheerio');
 const pdf = require('pdf-parse');
+const zlib = require('zlib');
 
 /**
  * Combined European RSS Generator
@@ -33,41 +34,194 @@ class EuropeanRSSGenerator {
             };
 
             https.get(targetUrl, options, (res) => {
-                let data = '';
-                res.on('data', chunk => data += chunk);
-                res.on('end', () => resolve(data));
-            }).on('error', reject);
-        });
-    }
-
-    // Utility function to fetch PDF content
-    async fetchPDF(pdfUrl) {
-        return new Promise((resolve, reject) => {
-            const options = {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-            };
-
-            https.get(pdfUrl, options, (res) => {
-                let data = [];
-                res.on('data', chunk => data.push(chunk));
-                res.on('end', async () => {
+                let chunks = [];
+                
+                res.on('data', chunk => chunks.push(chunk));
+                res.on('end', () => {
                     try {
-                        const buffer = Buffer.concat(data);
-                        const pdfData = await pdf(buffer);
-                        resolve(pdfData.text);
+                        let buffer = Buffer.concat(chunks);
+                        
+                        // Handle compressed responses
+                        const encoding = res.headers['content-encoding'];
+                        if (encoding === 'gzip') {
+                            buffer = zlib.gunzipSync(buffer);
+                        } else if (encoding === 'deflate') {
+                            buffer = zlib.inflateSync(buffer);
+                        }
+                        
+                        const html = buffer.toString('utf8');
+                        resolve(html);
                     } catch (error) {
-                        console.log(`Failed to parse PDF ${pdfUrl}:`, error.message);
-                        resolve('PDF content not available');
+                        console.log(`❌ Error decompressing response from ${targetUrl}:`, error.message);
+                        reject(error);
                     }
                 });
             }).on('error', reject);
         });
     }
 
+    // Utility function to fetch PDF content from Curia documents
+    async fetchPDF(documentUrl) {
+        try {
+            console.log(`🔍 Fetching document page: ${documentUrl}`);
+            
+            // If this is a documents.jsf URL, we need to extract the actual PDF link first
+            if (documentUrl.includes('documents.jsf')) {
+                const html = await this.fetchWithHeaders(documentUrl);
+                const $ = cheerio.load(html);
+                
+                // Look for showPdf.jsf links (the actual PDF downloads)
+                let pdfDownloadUrl = null;
+                
+                $('a[href*="showPdf.jsf"]').each((i, element) => {
+                    const href = $(element).attr('href');
+                    if (href && !pdfDownloadUrl) {
+                        // Decode HTML entities in the URL
+                        const decodedHref = href.replace(/&amp;/g, '&');
+                        
+                        // Prioritize English documents, fallback to any language
+                        if (decodedHref.includes('doclang=en') || decodedHref.includes('doclang=EN') || !pdfDownloadUrl) {
+                            if (decodedHref.startsWith('http')) {
+                                pdfDownloadUrl = decodedHref;
+                            } else {
+                                pdfDownloadUrl = 'https://curia.europa.eu' + decodedHref;
+                            }
+                        }
+                    }
+                });
+                
+                // If no PDF link found, try to extract from raw HTML
+                if (!pdfDownloadUrl) {
+                    console.log(`🐛 Cheerio found no links, trying regex search in raw HTML...`);
+                    
+                    // Use regex to find showPdf.jsf URLs in the raw HTML
+                    const showPdfRegex = /showPdf\.jsf[^"]*doclang=en[^"]*/gi;
+                    const matches = html.match(showPdfRegex);
+                    
+                    if (matches && matches.length > 0) {
+                        // Take the first match and clean it up
+                        let rawUrl = matches[0].replace(/&amp;/g, '&');
+                        
+                        // Make sure it's a complete URL
+                        if (!rawUrl.startsWith('http')) {
+                            rawUrl = 'https://curia.europa.eu/juris/' + rawUrl;
+                        }
+                        
+                        pdfDownloadUrl = rawUrl;
+                        console.log(`📋 Found PDF download link via regex: ${pdfDownloadUrl}`);
+                    } else {
+                        // Try fallback - look for any showPdf link regardless of language
+                        const anyShowPdfRegex = /showPdf\.jsf[^"]*/gi;
+                        const anyMatches = html.match(anyShowPdfRegex);
+                        
+                        if (anyMatches && anyMatches.length > 0) {
+                            let rawUrl = anyMatches[0].replace(/&amp;/g, '&');
+                            if (!rawUrl.startsWith('http')) {
+                                rawUrl = 'https://curia.europa.eu/juris/' + rawUrl;
+                            }
+                            pdfDownloadUrl = rawUrl;
+                            console.log(`📋 Found PDF download link (fallback language): ${pdfDownloadUrl}`);
+                        } else {
+                            console.log(`🐛 No showPdf links found at all in HTML`);
+                            console.log(`🐛 HTML sample (first 500 chars):`, html.substring(0, 500));
+                            console.log(`🐛 Looking for any "pdf" or "PDF" in HTML...`);
+                            const pdfMentions = html.match(/pdf/gi);
+                            console.log(`🐛 Found ${pdfMentions ? pdfMentions.length : 0} mentions of "pdf" in HTML`);
+                        }
+                    }
+                }
+                
+                if (pdfDownloadUrl) {
+                    console.log(`📋 Found PDF download link: ${pdfDownloadUrl}`);
+                    const pdfText = await this.downloadAndParsePDF(pdfDownloadUrl);
+                    return {
+                        text: pdfText,
+                        directPdfUrl: pdfDownloadUrl
+                    };
+                } else {
+                    console.log(`❌ No PDF download links found on ${documentUrl}`);
+                    return {
+                        text: 'PDF download link not found',
+                        directPdfUrl: null
+                    };
+                }
+            } else {
+                // Direct PDF URL
+                const pdfText = await this.downloadAndParsePDF(documentUrl);
+                return {
+                    text: pdfText,
+                    directPdfUrl: documentUrl
+                };
+            }
+        } catch (error) {
+            console.log(`❌ Error fetching PDF from ${documentUrl}:`, error.message);
+            return {
+                text: 'PDF content not available',
+                directPdfUrl: null
+            };
+        }
+    }
+
+    // Helper function to download and parse actual PDF files
+    async downloadAndParsePDF(pdfUrl) {
+        return new Promise((resolve, reject) => {
+            const options = {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/pdf,*/*',
+                    'Accept-Language': 'en-US,en;q=0.9'
+                }
+            };
+
+            console.log(`📥 Downloading PDF: ${pdfUrl}`);
+
+            https.get(pdfUrl, options, (res) => {
+                let data = [];
+                
+                // Check if we actually got a PDF
+                const contentType = res.headers['content-type'];
+                if (contentType && !contentType.includes('pdf')) {
+                    console.log(`❌ Not a PDF file, got content-type: ${contentType}`);
+                    resolve('Not a PDF file');
+                    return;
+                }
+                
+                res.on('data', chunk => data.push(chunk));
+                res.on('end', async () => {
+                    try {
+                        const buffer = Buffer.concat(data);
+                        
+                        // Check if buffer actually contains PDF data
+                        if (buffer.length < 100 || !buffer.toString('binary', 0, 4).includes('PDF')) {
+                            console.log(`❌ Invalid PDF data, size: ${buffer.length}, header: ${buffer.toString('binary', 0, 10)}`);
+                            resolve('Invalid PDF data');
+                            return;
+                        }
+                        
+                        console.log(`📄 Parsing PDF, size: ${buffer.length} bytes`);
+                        const pdfData = await pdf(buffer);
+                        
+                        if (pdfData.text && pdfData.text.length > 50) {
+                            console.log(`✅ Successfully extracted ${pdfData.text.length} characters from PDF`);
+                            resolve(pdfData.text);
+                        } else {
+                            console.log(`❌ PDF text too short: ${pdfData.text ? pdfData.text.length : 0} characters`);
+                            resolve('PDF text extraction failed');
+                        }
+                    } catch (error) {
+                        console.log(`❌ PDF parsing error: ${error.message}`);
+                        resolve('PDF parsing failed');
+                    }
+                });
+            }).on('error', (error) => {
+                console.log(`❌ Download error: ${error.message}`);
+                resolve('PDF download failed');
+            });
+        });
+    }
+
     // EEAS RSS Feed (already working)
-    generateEEASRSS() {
+    generateEEASRSS(req = null) {
         const now = new Date().toUTCString();
         
         // Sample press items based on actual EEAS content structure
@@ -108,12 +262,13 @@ class EuropeanRSSGenerator {
             'EEAS - Press Material',
             'https://www.eeas.europa.eu/eeas/press-material_en',
             'European External Action Service press material and news',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
     // Curia RSS Feed with real PDF extraction
-    async generateCuriaRSS() {
+    async generateCuriaRSS(req = null) {
         const cacheKey = 'curia-rss';
         const cached = this.cache.get(cacheKey);
         
@@ -176,7 +331,13 @@ class EuropeanRSSGenerator {
 
                     // For Curia, construct PDF URL from case number in title
                     if (!pdfUrl) {
-                        const caseMatch = item.title.match(/Case\s+(C-[\d\/]+)/i);
+                        // Try to match single case first: "Case C-XXX/YY"
+                        let caseMatch = item.title.match(/Case\s+(C-[\d\/]+)/i);
+                        if (!caseMatch) {
+                            // Try to match multiple cases: "Cases C-XXX/YY, C-AAA/BB" - take the first one
+                            caseMatch = item.title.match(/Cases\s+(C-[\d\/]+)/i);
+                        }
+                        
                         if (caseMatch) {
                             const caseNumber = caseMatch[1];
                             pdfUrl = `https://curia.europa.eu/juris/documents.jsf?num=${caseNumber}`;
@@ -202,44 +363,29 @@ class EuropeanRSSGenerator {
                     if (pdfUrl) {
                         console.log(`📋 Found PDF: ${pdfUrl}`);
                         try {
-                            // Extract text from PDF
-                            pdfText = await this.fetchPDF(pdfUrl);
+                            // Extract text from PDF and get the direct PDF download URL
+                            const pdfResult = await this.fetchPDF(pdfUrl);
                             
-                            if (pdfText && pdfText.length > 50) {
-                                // Extract first few paragraphs (approximately 500 characters)
-                                const excerpt = this.extractPDFExcerpt(pdfText);
-                                description = `
-                                    <div>
-                                        <p><strong>${item.title}</strong></p>
-                                        ${excerpt}
-                                        <p><strong><a href="${pdfUrl}" target="_blank">📄 Read Full PDF Document</a></strong></p>
-                                        <p><em>Source: Court of Justice of the European Union</em></p>
-                                    </div>
-                                `;
+                            if (pdfResult && pdfResult.text && pdfResult.text.length > 50) {
+                                // Extract first 3 paragraphs as summary
+                                const summary = this.extractPDFSummary(pdfResult.text);
+                                description = `<div><p><strong>${item.title}</strong></p>${summary}<p><em>Source: Court of Justice of the European Union</em></p></div>`;
+                                
+                                // Use the direct PDF URL as the main link
+                                if (pdfResult.directPdfUrl) {
+                                    item.link = pdfResult.directPdfUrl;
+                                    console.log(`📄 Using direct PDF URL as main link: ${pdfResult.directPdfUrl}`);
+                                }
                             } else {
                                 throw new Error('PDF text too short or empty');
                             }
                         } catch (pdfError) {
                             console.log(`❌ PDF extraction failed for ${item.title}: ${pdfError.message}`);
-                            description = `
-                                <div>
-                                    <p><strong>${item.title}</strong></p>
-                                    <p>PDF content unavailable - please view the original document.</p>
-                                    <p><strong><a href="${pdfUrl}" target="_blank">📄 View PDF Document</a></strong></p>
-                                    <p><em>Source: Court of Justice of the European Union</em></p>
-                                </div>
-                            `;
+                            description = `<div><p><strong>${item.title}</strong></p><p>PDF content unavailable - please view the original press release.</p><p><strong><a href="${item.link}" target="_blank">🔗 View Press Release</a></strong></p><p><em>Source: Court of Justice of the European Union</em></p></div>`;
                         }
                     } else {
                         // No PDF found
-                        description = `
-                            <div>
-                                <p><strong>${item.title}</strong></p>
-                                <p>PDF content unavailable - please view the original press release.</p>
-                                <p><strong><a href="${item.link}" target="_blank">🔗 View Press Release</a></strong></p>
-                                <p><em>Source: Court of Justice of the European Union</em></p>
-                            </div>
-                        `;
+                        description = `<div><p><strong>${item.title}</strong></p><p>PDF content unavailable - please view the original press release.</p><p><strong><a href="${item.link}" target="_blank">🔗 View Press Release</a></strong></p><p><em>Source: Court of Justice of the European Union</em></p></div>`;
                     }
 
                     return {
@@ -273,7 +419,8 @@ class EuropeanRSSGenerator {
                 'Curia - Press Releases',
                 'https://curia.europa.eu/jcms/jcms/Jo2_7052/en/',
                 'Court of Justice of the European Union press releases with PDF content extraction',
-                processedItems
+                processedItems,
+                req
             );
             
             // Cache the result
@@ -299,42 +446,49 @@ class EuropeanRSSGenerator {
                 'Curia - Press Releases',
                 'https://curia.europa.eu/jcms/jcms/Jo2_7052/en/',
                 'Court of Justice of the European Union press releases',
-                fallbackItems
+                fallbackItems,
+                req
             );
         }
     }
 
-    // Helper function to extract excerpt from PDF text
-    extractPDFExcerpt(pdfText) {
+    // Helper function to extract ~80 word summary from PDF text
+    extractPDFSummary(pdfText) {
         if (!pdfText) return '<p>PDF content unavailable</p>';
         
         // Clean up the text
         let cleanText = pdfText
             .replace(/\s+/g, ' ')  // Replace multiple spaces with single space
-            .replace(/\n+/g, '\n') // Replace multiple newlines with single newline
+            .replace(/\r\n/g, '\n') // Normalize line breaks
+            .replace(/\r/g, '\n')
             .trim();
         
-        // Split into sentences
-        const sentences = cleanText.split(/[.!?]+/).filter(s => s.trim().length > 10);
+        // Split into words and take approximately 80 words
+        const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+        const targetWords = Math.min(80, words.length);
         
-        // Take first 3-4 sentences or first 400 characters, whichever comes first
-        let excerpt = '';
-        let charCount = 0;
+        // Take first 80 words and join them
+        let summary = words.slice(0, targetWords).join(' ');
         
-        for (let i = 0; i < Math.min(sentences.length, 4); i++) {
-            const sentence = sentences[i].trim();
-            if (charCount + sentence.length > 400) break;
-            
-            excerpt += sentence + '. ';
-            charCount += sentence.length + 2;
+        // If we ended mid-sentence, try to end at a sentence boundary
+        const lastSentenceEnd = Math.max(
+            summary.lastIndexOf('.'),
+            summary.lastIndexOf('!'),
+            summary.lastIndexOf('?')
+        );
+        
+        // If we have a sentence ending within the last 20 characters, cut there
+        if (lastSentenceEnd > summary.length - 20 && lastSentenceEnd > summary.length * 0.7) {
+            summary = summary.substring(0, lastSentenceEnd + 1);
+        } else {
+            // Otherwise add ellipsis if we cut off mid-sentence
+            summary += '...';
         }
         
-        // Format as HTML paragraphs
-        const paragraphs = excerpt.split(/\n\n+/).filter(p => p.trim().length > 0);
-        return paragraphs.map(p => `<p>${p.trim()}</p>`).join('\n                                        ');
+        return `<p>${summary}</p>`;
     }
 
-    generateEuroparlRSS() {
+    generateEuroparlRSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: European Parliament News",
@@ -348,11 +502,12 @@ class EuropeanRSSGenerator {
             'European Parliament - News',
             'https://europarl.europa.eu',
             'European Parliament news and press releases',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateECARSS() {
+    generateECARSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: ECA News",
@@ -366,11 +521,12 @@ class EuropeanRSSGenerator {
             'ECA - News',
             'https://eca.europa.eu',
             'European Court of Auditors news and reports',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateConsiliumRSS() {
+    generateConsiliumRSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: Consilium Press Releases",
@@ -384,11 +540,12 @@ class EuropeanRSSGenerator {
             'Consilium - Press Releases',
             'https://consilium.europa.eu',
             'Council of the European Union press releases',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateFrontexRSS() {
+    generateFrontexRSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: Frontex News",
@@ -402,11 +559,12 @@ class EuropeanRSSGenerator {
             'Frontex - News',
             'https://frontex.europa.eu',
             'European Border and Coast Guard Agency news',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateEuropolRSS() {
+    generateEuropolRSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: Europol News",
@@ -420,11 +578,12 @@ class EuropeanRSSGenerator {
             'Europol - News',
             'https://europol.europa.eu',
             'European Union Agency for Law Enforcement Cooperation news',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateCOERSS() {
+    generateCOERSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: COE Newsroom",
@@ -438,11 +597,12 @@ class EuropeanRSSGenerator {
             'COE - Newsroom',
             'https://coe.int',
             'Council of Europe newsroom and press releases',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
-    generateNATORSS() {
+    generateNATORSS(req = null) {
         const sampleItems = [
             {
                 title: "Coming Soon: NATO News",
@@ -456,39 +616,50 @@ class EuropeanRSSGenerator {
             'NATO - News',
             'https://nato.int',
             'North Atlantic Treaty Organization news and updates',
-            sampleItems
+            sampleItems,
+            req
         );
     }
 
     // Generic RSS XML generator
-    generateRSSXML(title, link, description, items) {
+    generateRSSXML(title, link, description, items, req = null) {
         const now = new Date().toUTCString();
         
-        let rss = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-    <channel>
-        <title>${this.escapeXml(title)}</title>
-        <link>${link}</link>
-        <description>${this.escapeXml(description)}</description>
-        <language>en</language>
-        <lastBuildDate>${now}</lastBuildDate>
-        <atom:link href="http://localhost:${this.port}${this.getCurrentPath()}" rel="self" type="application/rss+xml" />
-        <generator>European RSS Generator</generator>
-`;
+        // Build the self-link URL dynamically from the request
+        let selfUrl = '';
+        if (req && req.headers.host) {
+            const protocol = req.headers['x-forwarded-proto'] || (req.connection.encrypted ? 'https' : 'http');
+            selfUrl = `${protocol}://${req.headers.host}${req.url}`;
+        } else {
+            // Fallback to localhost if no request info available
+            selfUrl = `http://localhost:${this.port}${this.getCurrentPath()}`;
+        }
+        
+        // Start with XML declaration
+        let rss = '<?xml version="1.0" encoding="UTF-8"?>';
+        rss += '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">';
+        rss += '<channel>';
+        rss += '<title>' + this.escapeXml(title) + '</title>';
+        rss += '<link>' + this.escapeXml(link) + '</link>';
+        rss += '<description>' + this.escapeXml(description) + '</description>';
+        rss += '<language>en</language>';
+        rss += '<pubDate>' + now + '</pubDate>';
+        rss += '<lastBuildDate>' + now + '</lastBuildDate>';
+        rss += '<generator>European RSS Generator v1.0</generator>';
+        rss += '<atom:link href="' + this.escapeXml(selfUrl) + '" rel="self" type="application/rss+xml" />';
 
         items.forEach(item => {
-            rss += `        <item>
-            <title><![CDATA[${item.title}]]></title>
-            <link>${item.link}</link>
-            <description><![CDATA[${item.description}]]></description>
-            <pubDate>${item.pubDate}</pubDate>
-            <guid isPermaLink="true">${item.link}</guid>
-        </item>
-`;
+            rss += '<item>';
+            rss += '<title><![CDATA[' + item.title + ']]></title>';
+            rss += '<description><![CDATA[' + item.description + ']]></description>';
+            rss += '<link>' + this.escapeXml(item.link) + '</link>';
+            rss += '<pubDate>' + item.pubDate + '</pubDate>';
+            rss += '<guid isPermaLink="false">' + this.escapeXml(item.link) + '</guid>';
+            rss += '</item>';
         });
 
-        rss += `    </channel>
-</rss>`;
+        rss += '</channel>';
+        rss += '</rss>';
 
         return rss;
     }
@@ -523,47 +694,47 @@ class EuropeanRSSGenerator {
             try {
                 switch(url.pathname) {
                     case '/eeas/press-material':
-                        rss = this.generateEEASRSS();
+                        rss = this.generateEEASRSS(req);
                         routeName = 'EEAS Press Material';
                         break;
                         
                     case '/curia/press-releases':
-                        rss = await this.generateCuriaRSS();
+                        rss = await this.generateCuriaRSS(req);
                         routeName = 'Curia Press Releases';
                         break;
                     
                 case '/europarl/news':
-                    rss = this.generateEuroparlRSS();
+                    rss = this.generateEuroparlRSS(req);
                     routeName = 'European Parliament News';
                     break;
                     
                 case '/eca/news':
-                    rss = this.generateECARSS();
+                    rss = this.generateECARSS(req);
                     routeName = 'ECA News';
                     break;
                     
                 case '/consilium/press-releases':
-                    rss = this.generateConsiliumRSS();
+                    rss = this.generateConsiliumRSS(req);
                     routeName = 'Consilium Press Releases';
                     break;
                     
                 case '/frontex/news':
-                    rss = this.generateFrontexRSS();
+                    rss = this.generateFrontexRSS(req);
                     routeName = 'Frontex News';
                     break;
                     
                 case '/europol/news':
-                    rss = this.generateEuropolRSS();
+                    rss = this.generateEuropolRSS(req);
                     routeName = 'Europol News';
                     break;
                     
                 case '/coe/newsroom':
-                    rss = this.generateCOERSS();
+                    rss = this.generateCOERSS(req);
                     routeName = 'COE Newsroom';
                     break;
                     
                 case '/nato/news':
-                    rss = this.generateNATORSS();
+                    rss = this.generateNATORSS(req);
                     routeName = 'NATO News';
                     break;
                     
