@@ -1,26 +1,29 @@
 {
-  "name": "eeas-rss-generator",
+  "name": "european-rss-generator",
   "version": "1.0.0",
-  "description": "Standalone RSS generator for EEAS press material",
+  "description": "Combined RSS generator for 9 European institutional websites",
   "main": "combined-european-rss.js",
   "scripts": {
     "start": "node combined-european-rss.js",
-    "dev": "node combined-european-rss.js"
+    "dev": "node combined-european-rss.js",
+    "vercel-build": "echo 'No build step required'"
   },
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
     "pdf-parse": "^1.1.1"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": "18.x"
   },
   "keywords": [
     "rss",
-    "eeas",
-    "europa",
+    "european",
+    "institutions",
     "news",
-    "generator"
+    "generator",
+    "wordpress",
+    "aggregator"
   ],
-  "author": "RSS Generator",
+  "author": "European RSS Generator",
   "license": "MIT"
 }

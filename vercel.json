@@ -1,0 +1,56 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "combined-european-rss.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/eeas/press-material",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/curia/press-releases",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/europarl/news",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/eca/news",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/consilium/press-releases",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/frontex/news",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/europol/news",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/coe/newsroom",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/nato/news",
+      "dest": "/combined-european-rss.js"
+    },
+    {
+      "src": "/",
+      "dest": "/combined-european-rss.js"
+    }
+  ],
+  "functions": {
+    "combined-european-rss.js": {
+      "maxDuration": 30
+    }
+  }
+}
