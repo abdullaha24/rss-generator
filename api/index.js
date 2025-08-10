@@ -1018,7 +1018,7 @@ async function generateNATORSS(reqUrl) {
             {
                 title: "NATO Stealth Scraping Status Report",
                 link: "https://www.nato.int/cps/en/natohq/news.htm",
-                description: `NATO - Stealth operation failed after ${errorTime}ms. Error: ${error.message}. Bot protection may have been detected. Techniques will be refined for next attempt.`,
+                description: `NATO DIAGNOSTIC - Operation failed after ${errorTime}ms. ERROR: ${error.message}. Stack: ${error.stack ? error.stack.substring(0, 300) : 'No stack trace'}. This message indicates the exact failure point.`,
                 pubDate: new Date().toUTCString(),
                 category: "NATO Stealth System"
             },
