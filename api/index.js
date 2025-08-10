@@ -1227,6 +1227,28 @@ module.exports = async (req, res) => {
             res.setHeader('Cache-Control', 'public, max-age=1800');
             res.setHeader('Last-Modified', new Date().toUTCString());
             return res.status(200).send(rss);
+        } else if (pathname === '/test-chromium') {
+            // Test endpoint to verify Chromium works
+            try {
+                const executablePath = await chromium.executablePath(
+                    'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+                );
+                const browser = await puppeteer.launch({
+                    args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
+                    executablePath,
+                    headless: chromium.headless
+                });
+                const page = await browser.newPage();
+                await page.goto('https://example.com');
+                const title = await page.title();
+                await browser.close();
+                
+                res.setHeader('Content-Type', 'text/plain');
+                return res.status(200).send(`✅ Chromium working! Page title: ${title}`);
+            } catch (error) {
+                res.setHeader('Content-Type', 'text/plain');
+                return res.status(500).send(`❌ Chromium failed: ${error.message}`);
+            }
         } else {
             // Default: serve homepage for any other path
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
