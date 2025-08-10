@@ -5,7 +5,7 @@
  */
 
 const https = require('https');
-const chromium = require('@sparticuz/chromium');
+const chromium = require('@sparticuz/chromium-min');
 const puppeteer = require('puppeteer-core');
 
 // Professional XML escape function
@@ -788,7 +788,10 @@ async function generateNATORSS(reqUrl) {
         console.log('🚀 Initializing NATO stealth operation...');
         
         // === PHASE 1: Advanced Browser Setup ===
-        const executablePath = await chromium.executablePath();
+        // Use external CDN for chromium-min to avoid dependency issues
+        const executablePath = await chromium.executablePath(
+            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+        );
         
         browser = await puppeteer.launch({
             args: [
@@ -814,12 +817,17 @@ async function generateNATORSS(reqUrl) {
                 '--disable-gpu',
                 '--disable-background-timer-throttling',
                 '--disable-renderer-backgrounding',
-                '--disable-backgrounding-occluded-windows'
+                '--disable-backgrounding-occluded-windows',
+                // Additional Vercel-specific args
+                '--single-process',
+                '--disable-dev-shm-usage',
+                '--disable-gpu-sandbox',
+                '--disable-software-rasterizer'
             ],
             executablePath,
             headless: chromium.headless,
             ignoreHTTPSErrors: true,
-            defaultViewport: null,
+            defaultViewport: chromium.defaultViewport,
             ignoreDefaultArgs: ['--disable-extensions', '--enable-automation']
         });
         
