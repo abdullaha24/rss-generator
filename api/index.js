@@ -5,7 +5,7 @@
  */
 
 const https = require('https');
-const chromium = require('@sparticuz/chromium-min');
+const chromium = require('chrome-aws-lambda');
 const puppeteer = require('puppeteer-core');
 
 // Professional XML escape function
@@ -788,11 +788,7 @@ async function generateNATORSS(reqUrl) {
         console.log('🚀 Initializing NATO stealth operation...');
         
         // === PHASE 1: Advanced Browser Setup ===
-        // Use external CDN for chromium-min to avoid dependency issues
-        const executablePath = await chromium.executablePath(
-            'https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar'
-        );
-        
+        // Use chrome-aws-lambda - proven working package
         browser = await puppeteer.launch({
             args: [
                 ...chromium.args,
@@ -800,9 +796,6 @@ async function generateNATORSS(reqUrl) {
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
                 '--disable-features=site-per-process',
-                '--disable-dev-shm-usage',
-                '--disable-setuid-sandbox',
-                '--no-sandbox',
                 '--no-first-run',
                 '--no-default-browser-check',
                 '--disable-default-apps',
@@ -811,20 +804,13 @@ async function generateNATORSS(reqUrl) {
                 '--disable-background-networking',
                 '--disable-sync',
                 '--metrics-recording-only',
-                '--disable-default-apps',
                 '--mute-audio',
                 '--no-report-upload',
-                '--disable-gpu',
                 '--disable-background-timer-throttling',
                 '--disable-renderer-backgrounding',
-                '--disable-backgrounding-occluded-windows',
-                // Additional Vercel-specific args
-                '--single-process',
-                '--disable-dev-shm-usage',
-                '--disable-gpu-sandbox',
-                '--disable-software-rasterizer'
+                '--disable-backgrounding-occluded-windows'
             ],
-            executablePath,
+            executablePath: await chromium.executablePath,
             headless: chromium.headless,
             ignoreHTTPSErrors: true,
             defaultViewport: chromium.defaultViewport,
@@ -1230,12 +1216,9 @@ module.exports = async (req, res) => {
         } else if (pathname === '/test-chromium') {
             // Test endpoint to verify Chromium works
             try {
-                const executablePath = await chromium.executablePath(
-                    'https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar'
-                );
                 const browser = await puppeteer.launch({
                     args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
-                    executablePath,
+                    executablePath: await chromium.executablePath,
                     headless: chromium.headless
                 });
                 const page = await browser.newPage();
