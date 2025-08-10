@@ -555,8 +555,14 @@ async function generateConsiliumRSS(reqUrl) {
     try {
         console.log('🔍 Fetching live Consilium press releases...');
         
+        // Add small delay to appear more human-like
+        await delay(1000);
+        
         // Fetch the live Consilium press releases page
         const html = await fetchWebContent('https://www.consilium.europa.eu/en/press/press-releases/');
+        
+        console.log('📄 HTML length received:', html.length);
+        console.log('📄 HTML preview:', html.substring(0, 500));
         
         // Parse all press releases from the page (typically 15-20 items)
         const items = parseConsiliumContent(html);
