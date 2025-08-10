@@ -790,7 +790,7 @@ async function generateNATORSS(reqUrl) {
         // === PHASE 1: Advanced Browser Setup ===
         // Use external CDN for chromium-min to avoid dependency issues
         const executablePath = await chromium.executablePath(
-            'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+            'https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar'
         );
         
         browser = await puppeteer.launch({
@@ -1231,7 +1231,7 @@ module.exports = async (req, res) => {
             // Test endpoint to verify Chromium works
             try {
                 const executablePath = await chromium.executablePath(
-                    'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+                    'https://github.com/Sparticuz/chromium/releases/download/v123.0.0/chromium-v123.0.0-pack.tar'
                 );
                 const browser = await puppeteer.launch({
                     args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
