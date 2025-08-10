@@ -1,9 +1,12 @@
 /**
  * Professional European RSS Generator
  * Live scraping from institutional websites with BBC-quality RSS output
+ * Enhanced with cutting-edge 2025 stealth techniques
  */
 
 const https = require('https');
+const chromium = require('@sparticuz/chromium');
+const puppeteer = require('puppeteer-core');
 
 // Professional XML escape function
 function escapeXml(text) {
@@ -776,76 +779,268 @@ function generateCOERSS(reqUrl) {
     );
 }
 
-// Generate NATO RSS feed with live scraping
+// Advanced stealth scraping for NATO with full 2025 arsenal
 async function generateNATORSS(reqUrl) {
+    const operationStart = Date.now();
+    let browser;
+    
     try {
-        console.log('🔍 Fetching live NATO news...');
+        console.log('🚀 Initializing NATO stealth operation...');
         
-        // Add small delay to appear more human-like
-        await delay(1000);
+        // === PHASE 1: Advanced Browser Setup ===
+        const executablePath = await chromium.executablePath();
         
-        // Fetch the live NATO news page
-        const html = await fetchWebContent('https://www.nato.int/cps/en/natohq/news.htm');
+        browser = await puppeteer.launch({
+            args: [
+                ...chromium.args,
+                // Anti-detection arguments
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--disable-features=site-per-process',
+                '--disable-dev-shm-usage',
+                '--disable-setuid-sandbox',
+                '--no-sandbox',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--disable-default-apps',
+                '--disable-extensions',
+                '--disable-component-extensions-with-background-pages',
+                '--disable-background-networking',
+                '--disable-sync',
+                '--metrics-recording-only',
+                '--disable-default-apps',
+                '--mute-audio',
+                '--no-report-upload',
+                '--disable-gpu',
+                '--disable-background-timer-throttling',
+                '--disable-renderer-backgrounding',
+                '--disable-backgrounding-occluded-windows'
+            ],
+            executablePath,
+            headless: chromium.headless,
+            ignoreHTTPSErrors: true,
+            defaultViewport: null,
+            ignoreDefaultArgs: ['--disable-extensions', '--enable-automation']
+        });
         
-        console.log('📄 NATO HTML length received:', html.length);
+        console.log(`⏱️  Browser launched in ${Date.now() - operationStart}ms`);
         
-        // Parse all news items from the table
+        // === PHASE 2: Create Isolated Context ===
+        const context = await browser.createIncognitoBrowserContext();
+        const page = await context.newPage();
+        
+        // === PHASE 3: Advanced Fingerprint Randomization ===
+        console.log('🎭 Applying fingerprint randomization...');
+        
+        // Randomize user agent from real 2025 browsers
+        const userAgents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
+        ];
+        const selectedUA = userAgents[Math.floor(Math.random() * userAgents.length)];
+        
+        // Randomize viewport
+        const viewports = [
+            { width: 1366, height: 768 },
+            { width: 1920, height: 1080 },
+            { width: 1440, height: 900 },
+            { width: 1536, height: 864 }
+        ];
+        const selectedViewport = viewports[Math.floor(Math.random() * viewports.length)];
+        
+        await Promise.all([
+            page.setUserAgent(selectedUA),
+            page.setViewport(selectedViewport),
+            page.setExtraHTTPHeaders({
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Upgrade-Insecure-Requests': '1',
+                'sec-ch-ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"'
+            })
+        ]);
+        
+        // === PHASE 4: Remove Automation Detection ===
+        await page.evaluateOnNewDocument(() => {
+            // Remove webdriver property
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
+            
+            // Fix chrome object
+            window.chrome = {
+                runtime: {},
+                loadTimes: function() {},
+                csi: function() {},
+                app: {}
+            };
+            
+            // Fix plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    { name: 'Chrome PDF Plugin', description: 'Portable Document Format', filename: 'internal-pdf-viewer' },
+                    { name: 'Chrome PDF Viewer', description: '', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai' },
+                    { name: 'Native Client', description: '', filename: 'internal-nacl-plugin' }
+                ],
+            });
+            
+            // Fix languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+            
+            // Fix permissions
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Uint8Array.from([Math.floor(Math.random() * 2)]) }) :
+                    originalQuery(parameters)
+            );
+        });
+        
+        console.log(`🎭 Fingerprint setup complete in ${Date.now() - operationStart}ms`);
+        
+        // === PHASE 5: Human-like Pre-navigation Behavior ===
+        console.log('🤖 Simulating human behavior...');
+        
+        // Random delay before navigation (humans don't navigate instantly)
+        const preNavDelay = Math.random() * 3000 + 2000; // 2-5 seconds
+        await delay(preNavDelay);
+        
+        // === PHASE 6: Multi-attempt Navigation with Backoff ===
+        let navigationSuccess = false;
+        let attempts = 0;
+        const maxAttempts = 3;
+        let html;
+        
+        while (!navigationSuccess && attempts < maxAttempts) {
+            attempts++;
+            console.log(`🌐 Navigation attempt ${attempts}/${maxAttempts}...`);
+            
+            try {
+                await page.goto('https://www.nato.int/cps/en/natohq/news.htm', {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 20000
+                });
+                
+                // Wait for page to stabilize
+                await delay(Math.random() * 2000 + 1000); // 1-3 seconds
+                
+                // Simulate human reading time
+                await delay(Math.random() * 3000 + 2000); // 2-5 seconds
+                
+                // Human-like mouse movements (simplified for performance)
+                const randomX = Math.floor(Math.random() * selectedViewport.width * 0.8) + 100;
+                const randomY = Math.floor(Math.random() * selectedViewport.height * 0.8) + 100;
+                await page.mouse.move(randomX, randomY);
+                await delay(500);
+                
+                // Simulate scrolling behavior
+                await page.evaluate(() => {
+                    const scrollAmount = Math.floor(Math.random() * 500) + 200;
+                    window.scrollBy(0, scrollAmount);
+                });
+                await delay(1000);
+                
+                // Another random mouse movement
+                const randomX2 = Math.floor(Math.random() * selectedViewport.width * 0.8) + 100;
+                const randomY2 = Math.floor(Math.random() * selectedViewport.height * 0.8) + 100;
+                await page.mouse.move(randomX2, randomY2);
+                
+                console.log(`✅ Navigation successful on attempt ${attempts}`);
+                navigationSuccess = true;
+                
+            } catch (navError) {
+                console.log(`⚠️  Navigation attempt ${attempts} failed:`, navError.message);
+                
+                if (attempts < maxAttempts) {
+                    // Exponential backoff with jitter
+                    const backoffTime = Math.pow(2, attempts) * 1000 + Math.random() * 2000;
+                    console.log(`⏳ Backing off for ${Math.round(backoffTime)}ms...`);
+                    await delay(backoffTime);
+                } else {
+                    throw new Error(`Navigation failed after ${maxAttempts} attempts`);
+                }
+            }
+        }
+        
+        // === PHASE 7: Content Extraction ===
+        console.log('📄 Extracting page content...');
+        html = await page.content();
+        console.log(`📊 HTML length: ${html.length} characters`);
+        
+        // === PHASE 8: Parse NATO Content ===
         const items = parseNATOContent(html);
         
         if (items.length === 0) {
-            throw new Error('No NATO news found - falling back to sample data');
+            throw new Error('No NATO news items found in scraped content');
         }
         
-        console.log(`✅ Successfully extracted ${items.length} live NATO news items`);
+        console.log(`✅ Successfully extracted ${items.length} NATO news items`);
+        console.log(`⏱️  Total operation time: ${Date.now() - operationStart}ms`);
         
         // Limit to 15 items for optimal RSS performance
         const limitedItems = items.slice(0, 15);
         
         return generateRSSXML(
-            'NATO - News',
+            'NATO - News (Stealth)',
             'https://www.nato.int/cps/en/natohq/news.htm',
-            'Live North Atlantic Treaty Organization news and security updates - Updated automatically',
+            'Live NATO news obtained through advanced stealth techniques - Updated automatically',
             limitedItems,
             reqUrl,
             'NATO'
         );
         
     } catch (error) {
-        console.error('❌ NATO scraping failed:', error.message);
+        const errorTime = Date.now() - operationStart;
+        console.error(`❌ NATO stealth operation failed after ${errorTime}ms:`, error.message);
         
-        // Professional fallback with recent sample data
+        // Enhanced fallback with operation details
         const fallbackItems = [
             {
-                title: "NATO enhances collective defense capabilities in Eastern Europe",
-                link: "https://nato.int/news/collective-defense-eastern-europe-2024",
-                description: "NATO - Alliance strengthens deterrence posture through enhanced forward presence and improved rapid response capabilities in Eastern European member states.",
-                pubDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toUTCString(),
-                category: "NATO News"
+                title: "NATO Stealth Scraping Status Report",
+                link: "https://www.nato.int/cps/en/natohq/news.htm",
+                description: `NATO - Stealth operation failed after ${errorTime}ms. Error: ${error.message}. Bot protection may have been detected. Techniques will be refined for next attempt.`,
+                pubDate: new Date().toUTCString(),
+                category: "NATO Stealth System"
             },
             {
-                title: "Summit declaration addresses emerging security challenges",
-                link: "https://nato.int/news/summit-declaration-security-challenges-2024",
-                description: "NATO - Leaders adopt comprehensive approach to hybrid threats, cyber security, and climate-related security challenges affecting Alliance territories.",
-                pubDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toUTCString(),
-                category: "NATO News"
-            },
-            {
-                title: "NATO launches new innovation fund for defense technologies",
-                link: "https://nato.int/news/innovation-fund-defense-technologies-2024",
-                description: "NATO - Billion-euro innovation fund supports development of cutting-edge defense technologies and strengthens Alliance technological edge.",
-                pubDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toUTCString(),
-                category: "NATO News"
+                title: "NATO Official News Page",
+                link: "https://www.nato.int/cps/en/natohq/news.htm",
+                description: "NATO - Direct link to NATO's official news page. Manual access recommended until stealth techniques are optimized.",
+                pubDate: new Date(Date.now() - 1 * 60 * 60 * 1000).toUTCString(),
+                category: "NATO Direct"
             }
         ];
         
         return generateRSSXML(
-            'NATO - News',
+            'NATO - News (Stealth Failed)',
             'https://www.nato.int/cps/en/natohq/news.htm',
-            'North Atlantic Treaty Organization news and security updates (Service temporarily unavailable - showing recent items)',
+            `NATO stealth scraping encountered protection after ${errorTime}ms - Refining techniques`,
             fallbackItems,
             reqUrl,
             'NATO'
         );
+        
+    } finally {
+        if (browser) {
+            try {
+                await browser.close();
+                console.log('🔒 Browser closed cleanly');
+            } catch (closeError) {
+                console.error('⚠️  Browser close error:', closeError.message);
+            }
+        }
     }
 }
 
